@@ -14,8 +14,8 @@ MAX_SEQUENCE_LENGTH = 100
 emotion_categories = {0:'neutral', 1:'surprise', 2:'fear', 3:'sadness', 4:'joy', 5:'anger', 6:'love'}
 emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categories))]
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'assets', 'model.keras')
-TOKENIZER_PATH = os.path.join(os.path.dirname(__file__), 'assets', 'tokenizer.pkl')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model.keras')
+TOKENIZER_PATH = os.path.join(os.path.dirname(__file__), 'tokenizer.pkl')
 
 tokenizer = None
 model = None
