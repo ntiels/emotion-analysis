@@ -1,11 +1,24 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Emotion Analysis</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Analyzer</title>
     <link rel="stylesheet" href="style.css">
 </head>
   <body>
     <div class="box">
+        <h1>Emotion Analyzer</h1>
+        <p>Enter text below to predict its emotion.</p>
+        <textarea id="textInput" placeholder="Type your message here..."></textarea>
+        <button onclick="analyzeEmotion()">Analyze Sentiment</button>
     </div>
+    <div id="results">
+        <h3>Prediction Results:</h3>
+        <p id="predictedEmotion">Predicted Emotion: -</p>
+        <h4>Probabilities:</h4>
+        <div id="probabilities"></div>
+    </div>
+    <script src="script.js"></script>
   </body>
 </html>
