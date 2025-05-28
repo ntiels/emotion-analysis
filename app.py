@@ -27,13 +27,15 @@ LOCAL_MODEL_PATH = "model.keras"
 
 @st.cache_resource
 def load_nlp_resources():
-    """
-    Downloads the tokenizer and model from Google Drive, and then loads them.
-    """
-
     creds_json_string = st.secrets["gcp_service_account"]
-    creds_info = json.loads(creds_json_string)
+    try:
+        # Parse the JSON string into a Python dictionary
+        creds_info = json.loads(creds_json_string)
+    except json.JSONDecodeError as e:
+        st.error(f"Error decoding JSON from secrets: {e}. Please check your GCP credentials in Streamlit secrets for invalid characters or formatting issues.")
+        st.stop()
 
+    # Create credentials from the dictionary
     creds = service_account.Credentials.from_service_account_info(creds_info)
 
     try:
@@ -65,11 +67,11 @@ def load_nlp_resources():
             st.success("Model downloaded successfully.")
 
     except HttpError as error:
-        st.error(f"An error occurred: {error}")
+        st.error(f"An error occurred with Google Drive API: {error}")
         st.stop()
     except Exception as e:
-         st.error(f"An unexpected error occurred: {e}")
-         st.stop()
+        st.error(f"An unexpected error occurred during download: {e}")
+        st.stop()
 
     try:
         with open(LOCAL_TOKENIZER_PATH, 'rb') as f:
@@ -85,8 +87,6 @@ def load_nlp_resources():
     except Exception as e:
         st.error(f"An unexpected error occurred loading tokenizer or model: {e}")
         st.stop()
-
-
 
 tokenizer, model = load_nlp_resources()
 
