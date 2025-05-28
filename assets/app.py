@@ -14,13 +14,10 @@ emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categorie
 # cached for efficiency
 @st.cache_resource
 def load_nlp_resources():
-    """
-    Loads the tokenizer and model, caching them for efficiency.
-    """
-    with open('tokenizer.pkl', 'rb') as f:
+    with open('/workspaces/emotion-analysis/assets/tokenizer.pkl', 'rb') as f:
         tokenizer = pickle.load(f)
 
-    model = load_model('model.keras')
+    model = load_model('/workspaces/emotion-analysis/assets/model.keras')
     return tokenizer, model
 
 tokenizer, model = load_nlp_resources()
@@ -31,19 +28,6 @@ def preprocess_text_app(text, tokenizer, max_sequence_length=100):
     sequences = tokenizer.texts_to_sequences([cleaned_text])
     padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
     return padded_sequences
-
-# shap pipeline
-pred = transformers.pipeline(
-    "emotion-classification",
-    model=model,
-    tokenizer=tokenizer,
-    device=0,
-    return_all_scores=True,
-)
-
-explainer = shap.Explainer(pred)
-shap_values = explainer(user_input)
-shap.plots.text(shap_values)
 
 # app layout
 
