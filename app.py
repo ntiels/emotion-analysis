@@ -101,14 +101,10 @@ if st.button("Analyze Sentiment"):
 
             try:
                 prediction = model.predict(processed_input)
-                emotion_probs = {emotion: float(prob) for emotion, prob in zip(emotion_names_list, prediction[0])}
+                emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
                 max_emotion = max(emotion_probs, key=emotion_probs.get)
-                output = {
-                    'probabilities': emotion_probs,
-                    'predicted_emotion': max_emotion
-                }
                 st.info(f"Predicted emotion: `{max_emotion}`")
-                st.info(f"Prediction Scores: `{output}`")
+                st.info(f"Prediction Scores: `{emotion_probs}`")
             except Exception as e:
                 st.error(f"Error during prediction: {e}")
                 st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
