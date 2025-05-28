@@ -65,7 +65,6 @@ def load_nlp_resources():
             with open(LOCAL_MODEL_PATH, 'wb') as f:
                 f.write(fh.read())
             st.success("Model downloaded successfully.")
-
     except HttpError as error:
         st.error(f"An error occurred with Google Drive API: {error}")
         st.stop()
