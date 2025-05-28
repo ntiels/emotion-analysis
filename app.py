@@ -6,6 +6,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import time
 import os
 import io
+import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -26,12 +27,17 @@ LOCAL_MODEL_PATH = "model.keras"
 
 @st.cache_resource
 def load_nlp_resources():
-    creds_json = st.secrets["gcp_service_account"]
-    creds = service_account.Credentials.from_service_account_info(creds_json)
+    """
+    Downloads the tokenizer and model from Google Drive, and then loads them.
+    """
+
+    creds_json_string = st.secrets["gcp_service_account"]
+    creds_info = json.loads(creds_json_string)
+
+    creds = service_account.Credentials.from_service_account_info(creds_info)
 
     try:
         service = build('drive', 'v3', credentials=creds)
-
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
             st.info(f"Downloading tokenizer from Google Drive...")
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
@@ -62,8 +68,8 @@ def load_nlp_resources():
         st.error(f"An error occurred: {error}")
         st.stop()
     except Exception as e:
-          st.error(f"An unexpected error occurred: {e}")
-          st.stop()
+         st.error(f"An unexpected error occurred: {e}")
+         st.stop()
 
     try:
         with open(LOCAL_TOKENIZER_PATH, 'rb') as f:
