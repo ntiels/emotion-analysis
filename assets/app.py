@@ -14,10 +14,10 @@ emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categorie
 # cached for efficiency
 @st.cache_resource
 def load_nlp_resources():
-    with open('/workspaces/emotion-analysis/assets/tokenizer.pkl', 'rb') as f:
+    with open('tokenizer.pkl', 'rb') as f:
         tokenizer = pickle.load(f)
 
-    model = load_model('/workspaces/emotion-analysis/assets/model.keras')
+    model = load_model('model.keras')
     return tokenizer, model
 
 tokenizer, model = load_nlp_resources()
