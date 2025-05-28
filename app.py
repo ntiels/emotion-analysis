@@ -41,7 +41,6 @@ def load_nlp_resources():
         service = build('drive', 'v3', credentials=creds)
 
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
-            st.info("Downloading tokenizer from Google Drive...")
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -51,10 +50,8 @@ def load_nlp_resources():
             fh.seek(0)
             with open(LOCAL_TOKENIZER_PATH, 'wb') as f:
                 f.write(fh.read())
-            st.success("Tokenizer downloaded successfully.")
 
         if not os.path.exists(LOCAL_MODEL_PATH):
-            st.info("Downloading model from Google Drive...")
             request = service.files().get_media(fileId=MODEL_FILE_ID)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -64,7 +61,6 @@ def load_nlp_resources():
             fh.seek(0)
             with open(LOCAL_MODEL_PATH, 'wb') as f:
                 f.write(fh.read())
-            st.success("Model downloaded successfully.")
     except HttpError as error:
         st.error(f"An error occurred with Google Drive API: {error}")
         st.stop()
