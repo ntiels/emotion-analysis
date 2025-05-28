@@ -25,6 +25,7 @@ LOCAL_MODEL_PATH = "model.keras"
 
 @st.cache_resource
 def load_nlp_resources():
+    creds = None
     try:
         creds_info = dict(st.secrets["gcp_service_account"])
         creds = service_account.Credentials.from_service_account_info(creds_info)
@@ -35,11 +36,10 @@ def load_nlp_resources():
         st.error(f"Error loading GCP credentials: {e}")
         st.stop()
 
+    service = None
     try:
         service = build('drive', 'v3', credentials=creds)
 
-    try:
-        service = build('drive', 'v3', credentials=creds)
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
             st.info("Downloading tokenizer from Google Drive...")
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
@@ -89,8 +89,6 @@ def preprocess_text_app(text, tokenizer, max_sequence_length=100):
     sequences = tokenizer.texts_to_sequences([cleaned_text])
     padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
     return padded_sequences
-
-# app layout
 
 st.title("Sentiment Analysis with BiGRU and GloVe Embeddings")
 st.markdown("""
