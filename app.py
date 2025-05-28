@@ -18,7 +18,6 @@ MAX_SEQUENCE_LENGTH = 100
 emotion_categories = {0:'neutral', 1:'surprise', 2:'fear', 3:'sadness', 4:'joy', 5:'anger', 6:'love'}
 emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categories))]
 
-# Google Drive file IDs (replace with your actual file IDs)
 TOKENIZER_FILE_ID = "19_8KtzNfKEyZJY3NsCtJyMbj4fAYxLrt"
 MODEL_FILE_ID = "1E2sPDSR6m6vCFHut5tTXOswvjscfy81Q"
 LOCAL_TOKENIZER_PATH = "tokenizer.pkl"
@@ -29,13 +28,11 @@ LOCAL_MODEL_PATH = "model.keras"
 def load_nlp_resources():
     creds_json_string = st.secrets["gcp_service_account"]
     try:
-        # Parse the JSON string into a Python dictionary
         creds_info = json.loads(creds_json_string)
     except json.JSONDecodeError as e:
         st.error(f"Error decoding JSON from secrets: {e}. Please check your GCP credentials in Streamlit secrets for invalid characters or formatting issues.")
         st.stop()
 
-    # Create credentials from the dictionary
     creds = service_account.Credentials.from_service_account_info(creds_info)
 
     try:
