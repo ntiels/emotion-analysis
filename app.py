@@ -6,7 +6,6 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import time
 import os
 import io
-import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -26,19 +25,23 @@ LOCAL_MODEL_PATH = "model.keras"
 
 @st.cache_resource
 def load_nlp_resources():
-    creds_json_string = st.secrets["gcp_service_account"]
     try:
-        creds_info = json.loads(creds_json_string)
-    except json.JSONDecodeError as e:
-        st.error(f"Error decoding JSON from secrets: {e}. Please check your GCP credentials in Streamlit secrets for invalid characters or formatting issues.")
+        creds_info = dict(st.secrets["gcp_service_account"])
+        creds = service_account.Credentials.from_service_account_info(creds_info)
+    except KeyError:
+        st.error("GCP credentials ('gcp_service_account') not found in Streamlit secrets. Please check your secrets.toml file.")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error loading GCP credentials: {e}")
         st.stop()
 
-    creds = service_account.Credentials.from_service_account_info(creds_info)
+    try:
+        service = build('drive', 'v3', credentials=creds)
 
     try:
         service = build('drive', 'v3', credentials=creds)
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
-            st.info(f"Downloading tokenizer from Google Drive...")
+            st.info("Downloading tokenizer from Google Drive...")
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -51,7 +54,7 @@ def load_nlp_resources():
             st.success("Tokenizer downloaded successfully.")
 
         if not os.path.exists(LOCAL_MODEL_PATH):
-            st.info(f"Downloading model from Google Drive...")
+            st.info("Downloading model from Google Drive...")
             request = service.files().get_media(fileId=MODEL_FILE_ID)
             fh = io.BytesIO()
             downloader = MediaIoBaseDownload(fh, request)
@@ -75,12 +78,6 @@ def load_nlp_resources():
             tokenizer = pickle.load(f)
         model = load_model(LOCAL_MODEL_PATH)
         return tokenizer, model
-    except FileNotFoundError:
-        st.error("Error: tokenizer.pkl or model.keras not found. Please ensure they were downloaded correctly.")
-        st.stop()
-    except pickle.UnpicklingError:
-        st.error("Error: Could not load tokenizer. Ensure it's a valid pickle file.")
-        st.stop()
     except Exception as e:
         st.error(f"An unexpected error occurred loading tokenizer or model: {e}")
         st.stop()
