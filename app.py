@@ -117,4 +117,3 @@ if st.button("Analyze Sentiment"):
 
 st.markdown("---")
 st.markdown("Developed by Nathaniel Shin")
-st.markdown("This app is for demonstration purposes. Model accuracy may vary.")
