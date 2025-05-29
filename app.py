@@ -245,41 +245,55 @@ document.getElementById('sentimentForm').addEventListener('submit', function(e) 
 </script>
 """
 
+# Initialize session state for form input
+if 'form_input' not in st.session_state:
+    st.session_state.form_input = ""
+if 'analyze_triggered' not in st.session_state:
+    st.session_state.analyze_triggered = False
+
 # Display the custom HTML form
-html_input = components.html(html_form, height=300)
+html_input = components.html(html_form, height=300, key="sentiment_form")
 
 # Handle form submission
-if html_input:
-    user_input = html_input
-    
-    if user_input and user_input.strip():
-        with st.spinner("🔄 Analyzing your text..."):
-            time.sleep(0.5)  # Small delay for better UX
-            processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
+if html_input and isinstance(html_input, str) and html_input.strip():
+    st.session_state.form_input = html_input.strip()
+    st.session_state.analyze_triggered = True
 
-            try:
-                prediction = model.predict(processed_input)
-                emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
-                max_emotion = max(emotion_probs, key=emotion_probs.get)
-                
-                # Custom HTML results display
-                st.markdown(f"""
-                <div class="result-container">
-                    <div class="emotion-result">
-                        🎯 <strong>Predicted Emotion:</strong> <span style="color: #667eea; font-size: 1.3rem;">{max_emotion.upper()}</span>
-                    </div>
-                    <div>
-                        <strong>📊 Confidence Scores:</strong>
-                        <div class="emotion-scores">
-                            {emotion_probs}
-                        </div>
+# Process the analysis if triggered
+if st.session_state.analyze_triggered and st.session_state.form_input:
+    user_input = st.session_state.form_input
+    
+    with st.spinner("🔄 Analyzing your text..."):
+        time.sleep(0.5)  # Small delay for better UX
+        processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
+
+        try:
+            prediction = model.predict(processed_input)
+            emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
+            max_emotion = max(emotion_probs, key=emotion_probs.get)
+            
+            # Custom HTML results display
+            st.markdown(f"""
+            <div class="result-container">
+                <div class="emotion-result">
+                    🎯 <strong>Predicted Emotion:</strong> <span style="color: #667eea; font-size: 1.3rem;">{max_emotion.upper()}</span>
+                </div>
+                <div>
+                    <strong>📊 Confidence Scores:</strong>
+                    <div class="emotion-scores">
+                        {emotion_probs}
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"❌ Error during prediction: {e}")
-                st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Reset the trigger after displaying results
+            st.session_state.analyze_triggered = False
+            
+        except Exception as e:
+            st.error(f"❌ Error during prediction: {e}")
+            st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
+            st.session_state.analyze_triggered = False
 
 # Fallback: Original Streamlit input (for backup)
 st.markdown("---")
