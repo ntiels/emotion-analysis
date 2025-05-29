@@ -82,22 +82,29 @@ st.markdown("""
     
     /* FIXED: Streamlit text area styling - removed !important overrides that break functionality */
     .stTextArea textarea {
-        border: 2px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 16px;
-        font-size: 16px;
-        font-family: 'Inter', sans-serif;
-        background: #fafafa;
-        transition: all 0.2s ease;
-        resize: vertical;
-        min-height: 120px;
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+        font-size: 16px !important;
+        font-family: 'Inter', sans-serif !important;
+        background: #fafafa !important;
+        transition: all 0.2s ease !important;
+        resize: vertical !important;
+        min-height: 120px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
     
     .stTextArea textarea:focus {
-        border-color: #667eea;
-        background: #ffffff;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        outline: none;
+        border-color: #667eea !important;
+        background: #ffffff !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+        outline: none !important;
+    }
+    
+    /* Hide the label that appears above */
+    .stTextArea label {
+        display: none !important;
     }
     
     /* Button styling */
