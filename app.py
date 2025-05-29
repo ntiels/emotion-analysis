@@ -47,46 +47,43 @@ st.markdown("""
         border: 1px solid #e9ecef;
     }
     
-    .custom-textbox {
+    .custom-textbox, .stTextArea textarea {
         width: 100%;
-        min-height: 120px;
-        padding: 15px;
-        border: 2px solid #ddd;
-        border-radius: 8px;
-        font-size: 16px;
-        font-family: 'Arial', sans-serif;
+        min-height: 120px !important;
+        padding: 15px !important;
+        border: 2px solid #ddd !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        font-family: 'Arial', sans-serif !important;
         resize: vertical;
         transition: border-color 0.3s ease;
         box-sizing: border-box;
     }
     
-    .custom-textbox:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    .custom-textbox:focus, .stTextArea textarea:focus {
+        outline: none !important;
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
     }
     
-    .custom-button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 12px 30px;
-        font-size: 16px;
-        font-weight: 600;
-        border-radius: 8px;
+    .stButton button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        padding: 12px 30px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
         cursor: pointer;
         transition: all 0.3s ease;
-        margin-top: 15px;
         min-width: 150px;
+        width: 100% !important;
     }
     
-    .custom-button:hover {
+    .stButton button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-    
-    .custom-button:active {
-        transform: translateY(0);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+        background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
     }
     
     .result-container {
@@ -208,61 +205,24 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Custom HTML input form
-html_form = """
+# Custom HTML styling for Streamlit components
+st.markdown("""
 <div class="input-container">
-    <form id="sentimentForm">
-        <h3 style="margin-top: 0; color: #333;">Enter your text for emotion analysis:</h3>
-        <textarea 
-            id="textInput" 
-            class="custom-textbox" 
-            placeholder="Type something like 'This movie was fantastic!' or 'I hated the food.'"
-            required
-        ></textarea>
-        <br>
-        <button type="submit" class="custom-button">
-            🔍 Analyze Sentiment
-        </button>
-    </form>
+    <h3 style="margin-top: 0; color: #333;">Enter your text for emotion analysis:</h3>
 </div>
+""", unsafe_allow_html=True)
 
-<script>
-document.getElementById('sentimentForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const textInput = document.getElementById('textInput');
-    const text = textInput.value.trim();
-    
-    if (text) {
-        // Store the input text in session state via Streamlit
-        window.parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: text
-        }, '*');
-    } else {
-        alert('Please enter some text to analyze.');
-    }
-});
-</script>
-"""
+# Enhanced Streamlit text area with custom styling
+user_input = st.text_area(
+    "",
+    height=120,
+    placeholder="Type something like 'This movie was fantastic!' or 'I hated the food.'",
+    help="Enter any text to analyze its emotional sentiment"
+)
+# Custom styled button using Streamlit
+analyze_button = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
-# Initialize session state for form input
-if 'form_input' not in st.session_state:
-    st.session_state.form_input = ""
-if 'analyze_triggered' not in st.session_state:
-    st.session_state.analyze_triggered = False
-
-# Display the custom HTML form
-html_input = components.html(html_form, height=300, key="sentiment_form")
-
-# Handle form submission
-if html_input and isinstance(html_input, str) and html_input.strip():
-    st.session_state.form_input = html_input.strip()
-    st.session_state.analyze_triggered = True
-
-# Process the analysis if triggered
-if st.session_state.analyze_triggered and st.session_state.form_input:
-    user_input = st.session_state.form_input
-    
+if analyze_button and user_input and user_input.strip():
     with st.spinner("🔄 Analyzing your text..."):
         time.sleep(0.5)  # Small delay for better UX
         processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
@@ -287,13 +247,12 @@ if st.session_state.analyze_triggered and st.session_state.form_input:
             </div>
             """, unsafe_allow_html=True)
             
-            # Reset the trigger after displaying results
-            st.session_state.analyze_triggered = False
-            
         except Exception as e:
             st.error(f"❌ Error during prediction: {e}")
             st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
-            st.session_state.analyze_triggered = False
+
+elif analyze_button and not user_input.strip():
+    st.warning("⚠️ Please enter some text to analyze.")
 
 # Fallback: Original Streamlit input (for backup)
 st.markdown("---")
