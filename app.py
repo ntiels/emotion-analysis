@@ -232,20 +232,66 @@ if analyze_button and user_input and user_input.strip():
             emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
             max_emotion = max(emotion_probs, key=emotion_probs.get)
             
-            # Custom HTML results display
+            # Display predicted emotion
             st.markdown(f"""
             <div class="result-container">
                 <div class="emotion-result">
                     🎯 <strong>Predicted Emotion:</strong> <span style="color: #667eea; font-size: 1.3rem;">{max_emotion.upper()}</span>
                 </div>
-                <div>
-                    <strong>📊 Confidence Scores:</strong>
-                    <div class="emotion-scores">
-                        {emotion_probs}
-                    </div>
-                </div>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Create bar chart for emotion probabilities
+            import pandas as pd
+            import matplotlib.pyplot as plt
+            
+            # Prepare data for visualization
+            emotions = list(emotion_probs.keys())
+            probabilities = list(emotion_probs.values())
+            
+            # Create DataFrame for easier plotting
+            df = pd.DataFrame({
+                'Emotion': emotions,
+                'Probability': probabilities
+            }).sort_values('Probability', ascending=True)
+            
+            # Create bar chart
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Color scheme - highlight the max emotion
+            colors = ['#667eea' if emotion == max_emotion else '#a0a8d4' for emotion in df['Emotion']]
+            
+            bars = ax.barh(df['Emotion'], df['Probability'], color=colors)
+            
+            # Customize the plot
+            ax.set_xlabel('Confidence Score', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Emotions', fontsize=12, fontweight='bold')
+            ax.set_title('Emotion Analysis Results', fontsize=14, fontweight='bold', pad=20)
+            ax.set_xlim(0, max(probabilities) * 1.1)
+            
+            # Add value labels on bars
+            for i, (bar, prob) in enumerate(zip(bars, df['Probability'])):
+                ax.text(prob + max(probabilities) * 0.01, bar.get_y() + bar.get_height()/2, 
+                       f'{prob:.3f}', ha='left', va='center', fontweight='bold')
+            
+            # Style the plot
+            ax.grid(axis='x', alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color('#cccccc')
+            ax.spines['bottom'].set_color('#cccccc')
+            
+            # Set background color
+            fig.patch.set_facecolor('white')
+            ax.set_facecolor('#fafafa')
+            
+            plt.tight_layout()
+            
+            # Display the chart
+            st.pyplot(fig)
+            
+            # Clean up
+            plt.close()
             
         except Exception as e:
             st.error(f"❌ Error during prediction: {e}")
@@ -254,28 +300,7 @@ if analyze_button and user_input and user_input.strip():
 elif analyze_button and not user_input.strip():
     st.warning("⚠️ Please enter some text to analyze.")
 
-# Fallback: Original Streamlit input (for backup)
-st.markdown("---")
-st.markdown("### Alternative Input (Streamlit Native)")
-fallback_input = st.text_area("Enter text here (fallback):", height=100, placeholder="Backup input method")
 
-if st.button("🔍 Analyze (Fallback)"):
-    if fallback_input:
-        with st.spinner("Analyzing..."):
-            processed_input = preprocess_text_app(fallback_input, tokenizer, MAX_SEQUENCE_LENGTH)
-
-            try:
-                prediction = model.predict(processed_input)
-                emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
-                max_emotion = max(emotion_probs, key=emotion_probs.get)
-                
-                st.success(f"**Predicted emotion:** `{max_emotion}`")
-                st.info(f"**Prediction Scores:** `{emotion_probs}`")
-            except Exception as e:
-                st.error(f"Error during prediction: {e}")
-                st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
-    else:
-        st.warning("Please enter some text to analyze.")
 
 # Custom footer
 st.markdown("""
