@@ -420,23 +420,19 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Input section with working text area inside the styled container
-user_input = None
-with st.container():
-    st.markdown("""
-    <div class="input-section">
-        <label class="input-label">Enter your text</label>
-    """, unsafe_allow_html=True)
-    
-    user_input = st.text_area(
-        "",
-        height=120,
-        placeholder="Write something to analyze its emotional content...",
-        key="emotion_input",
-        label_visibility="collapsed"
-    )
-    
-    st.markdown("</div>", unsafe_allow_html=True)
+# Simple, clean input section
+st.markdown("""
+<div class="input-section">
+    <label class="input-label">Enter your text</label>
+</div>
+""", unsafe_allow_html=True)
+
+user_input = st.text_area(
+    "",
+    height=120,
+    placeholder="Write something to analyze its emotional content...",
+    label_visibility="collapsed"
+)
 
 analyze_button = st.button("Analyze", type="primary")
 
