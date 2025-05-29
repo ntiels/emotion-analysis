@@ -300,11 +300,11 @@ def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
         return None
 
 tokenizer, model = load_nlp_resources()
-    cleaned_text = text.lower()
-    cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
-    sequences = tokenizer.texts_to_sequences([cleaned_text])
-    padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
-    return padded_sequences
+cleaned_text = text.lower()
+cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
+sequences = tokenizer.texts_to_sequences([cleaned_text])
+padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
+return padded_sequences
 
 # Custom HTML header
 st.markdown("""
