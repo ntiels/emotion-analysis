@@ -413,22 +413,23 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Input section with improved structure
-st.markdown("""
-<div class="input-section">
-    <label class="input-label">Enter your text</label>
-</div>
-""", unsafe_allow_html=True)
-
-# Use a container to better control the input area
+# Input section with working text area inside the styled container
+user_input = None
 with st.container():
+    st.markdown("""
+    <div class="input-section">
+        <label class="input-label">Enter your text</label>
+    """, unsafe_allow_html=True)
+    
     user_input = st.text_area(
-        "Enter your text",
+        "",
         height=120,
         placeholder="Write something to analyze its emotional content...",
         key="emotion_input",
-        help="Type or paste the text you want to analyze for emotional content"
+        label_visibility="collapsed"
     )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 analyze_button = st.button("Analyze", type="primary")
 
