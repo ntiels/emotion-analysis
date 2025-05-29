@@ -381,7 +381,7 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
             max_emotion = emotion_names[max_contrib_idx]
             contribution = word_contribs[max_contrib_idx]
             
-            if abs(contribution) > 0.05:
+            if abs(contribution) > 0.03:
                 color = emotion_colors.get(max_emotion, '#808080')
                 opacity = min(abs(contribution) * 8, 1.0)
                 
