@@ -10,8 +10,122 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="NLP Emotion Analyzer", layout="centered")
+
+# Custom CSS styling
+st.markdown("""
+<style>
+    .main-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .main-header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+    
+    .main-header p {
+        margin: 0.5rem 0 0 0;
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .input-container {
+        background: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border: 1px solid #e9ecef;
+    }
+    
+    .custom-textbox {
+        width: 100%;
+        min-height: 120px;
+        padding: 15px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: 'Arial', sans-serif;
+        resize: vertical;
+        transition: border-color 0.3s ease;
+        box-sizing: border-box;
+    }
+    
+    .custom-textbox:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .custom-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 15px;
+        min-width: 150px;
+    }
+    
+    .custom-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+    
+    .custom-button:active {
+        transform: translateY(0);
+    }
+    
+    .result-container {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border-left: 4px solid #667eea;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .emotion-result {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 1rem;
+    }
+    
+    .emotion-scores {
+        font-family: 'Courier New', monospace;
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 5px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .footer {
+        text-align: center;
+        margin-top: 3rem;
+        padding: 1rem;
+        color: #666;
+        border-top: 1px solid #eee;
+    }
+    
+    .stSpinner {
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 MAX_SEQUENCE_LENGTH = 100
 emotion_categories = {0:'neutral', 1:'surprise', 2:'fear', 3:'sadness', 4:'joy', 5:'anger', 6:'love'}
@@ -86,30 +200,117 @@ def preprocess_text_app(text, tokenizer, max_sequence_length=100):
     padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
     return padded_sequences
 
-st.title("Sentiment Analysis with BiGRU and GloVe Embeddings")
+# Custom HTML header
 st.markdown("""
-    This app predicts the emotion of text using a BiGRU neural network
-    trained with GloVe pre-trained word embeddings.
-    """)
+<div class="main-header">
+    <h1>🎭 Sentiment Analysis</h1>
+    <p>BiGRU Neural Network with GloVe Embeddings</p>
+</div>
+""", unsafe_allow_html=True)
 
-user_input = st.text_area("Enter text here:", height=150, placeholder="Type something like 'This movie was fantastic!' or 'I hated the food.'")
+# Custom HTML input form
+html_form = """
+<div class="input-container">
+    <form id="sentimentForm">
+        <h3 style="margin-top: 0; color: #333;">Enter your text for emotion analysis:</h3>
+        <textarea 
+            id="textInput" 
+            class="custom-textbox" 
+            placeholder="Type something like 'This movie was fantastic!' or 'I hated the food.'"
+            required
+        ></textarea>
+        <br>
+        <button type="submit" class="custom-button">
+            🔍 Analyze Sentiment
+        </button>
+    </form>
+</div>
 
-if st.button("Analyze Sentiment"):
-    if user_input:
-        with st.spinner("Analyzing..."):
+<script>
+document.getElementById('sentimentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const textInput = document.getElementById('textInput');
+    const text = textInput.value.trim();
+    
+    if (text) {
+        // Store the input text in session state via Streamlit
+        window.parent.postMessage({
+            type: 'streamlit:setComponentValue',
+            value: text
+        }, '*');
+    } else {
+        alert('Please enter some text to analyze.');
+    }
+});
+</script>
+"""
+
+# Display the custom HTML form
+html_input = components.html(html_form, height=300)
+
+# Handle form submission
+if html_input:
+    user_input = html_input
+    
+    if user_input and user_input.strip():
+        with st.spinner("🔄 Analyzing your text..."):
+            time.sleep(0.5)  # Small delay for better UX
             processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
 
             try:
                 prediction = model.predict(processed_input)
                 emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
                 max_emotion = max(emotion_probs, key=emotion_probs.get)
-                st.info(f"Predicted emotion: `{max_emotion}`")
-                st.info(f"Prediction Scores: `{emotion_probs}`")
+                
+                # Custom HTML results display
+                st.markdown(f"""
+                <div class="result-container">
+                    <div class="emotion-result">
+                        🎯 <strong>Predicted Emotion:</strong> <span style="color: #667eea; font-size: 1.3rem;">{max_emotion.upper()}</span>
+                    </div>
+                    <div>
+                        <strong>📊 Confidence Scores:</strong>
+                        <div class="emotion-scores">
+                            {emotion_probs}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"❌ Error during prediction: {e}")
+                st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
+
+# Fallback: Original Streamlit input (for backup)
+st.markdown("---")
+st.markdown("### Alternative Input (Streamlit Native)")
+fallback_input = st.text_area("Enter text here (fallback):", height=100, placeholder="Backup input method")
+
+if st.button("🔍 Analyze (Fallback)"):
+    if fallback_input:
+        with st.spinner("Analyzing..."):
+            processed_input = preprocess_text_app(fallback_input, tokenizer, MAX_SEQUENCE_LENGTH)
+
+            try:
+                prediction = model.predict(processed_input)
+                emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
+                max_emotion = max(emotion_probs, key=emotion_probs.get)
+                
+                st.success(f"**Predicted emotion:** `{max_emotion}`")
+                st.info(f"**Prediction Scores:** `{emotion_probs}`")
             except Exception as e:
                 st.error(f"Error during prediction: {e}")
                 st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
     else:
         st.warning("Please enter some text to analyze.")
 
-st.markdown("---")
-st.markdown("Developed by Nathaniel Shin")
+# Custom footer
+st.markdown("""
+<div class="footer">
+    <hr style="margin: 2rem 0; border: none; height: 1px; background: #eee;">
+    <p>💻 <strong>Developed by Nathaniel Shin</strong></p>
+    <p style="font-size: 0.9rem; color: #888;">
+        Powered by BiGRU Neural Network & GloVe Word Embeddings
+    </p>
+</div>
+""", unsafe_allow_html=True)
