@@ -196,7 +196,7 @@ def load_nlp_resources():
     service = None
     try:
         service = build('drive', 'v3', credentials=creds)
-
+        
         # Download tokenizer if not exists
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
@@ -220,7 +220,7 @@ def load_nlp_resources():
             fh.seek(0)
             with open(LOCAL_MODEL_PATH, 'wb') as f:
                 f.write(fh.read())
-
+                
     except HttpError as error:
         st.error(f"An error occurred with Google Drive API: {error}")
         st.stop()
@@ -250,46 +250,25 @@ def create_shap_explainer(model, tokenizer, max_length=100):
         # Preprocess texts same way as training
         processed_texts = []
         for text in texts:
-            cleaned_text = text.lower()
             if isinstance(text, (list, np.ndarray)):
                 text = str(text)
             cleaned_text = str(text).lower()
             cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
             processed_texts.append(cleaned_text)
-
+        
         # Convert to sequences and pad
         sequences = tokenizer.texts_to_sequences(processed_texts)
         padded = pad_sequences(sequences, maxlen=max_length)
-
+        
         # Get predictions
         predictions = model.predict(padded, verbose=0)
         return predictions
-
-    # Create explainer with a simple background (empty string)
-    explainer = shap.Explainer(model_predict, [""]*10)  # Small background dataset
+    
     # Create explainer - use empty strings as background
     background_data = [""] * 5
     explainer = shap.Explainer(model_predict, background_data)
     return explainer
 
-def get_word_contributions(text, shap_values, emotion_names):
-    """Extract word-level contributions for each emotion"""
-    words = text.split()
-    
-    # Get contributions for each emotion
-    word_contributions = {}
-    for i, emotion in enumerate(emotion_names):
-        contributions = []
-        for j, word in enumerate(words):
-            if j < len(shap_values):
-                contributions.append({
-                    'word': word,
-                    'contribution': shap_values[j, i],
-                    'emotion': emotion
-                })
-        word_contributions[emotion] = contributions
-    
-    return word_contributions
 def get_word_level_shap_values(text, model, tokenizer, max_length=100):
     """Get SHAP values for individual words in the text"""
     try:
@@ -332,7 +311,7 @@ def get_word_level_shap_values(text, model, tokenizer, max_length=100):
 def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion):
     """Create HTML with color-coded words based on SHAP values"""
     words = text.split()
-
+    
     # Color scheme for different emotions
     emotion_colors = {
         'joy': '#FFD700',      # Gold
@@ -343,9 +322,9 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
         'surprise': '#32CD32', # Lime Green
         'neutral': '#808080'   # Gray
     }
-
+    
     html_parts = []
-
+    
     for i, word in enumerate(words):
         if i < len(shap_values):
             # Find the emotion with highest contribution for this word
@@ -353,12 +332,12 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
             max_contrib_idx = np.argmax(np.abs(word_contribs))
             max_emotion = emotion_names[max_contrib_idx]
             contribution = word_contribs[max_contrib_idx]
-
+            
             # Only color if contribution is significant
-            if abs(contribution) > 0.01:  # Threshold for highlighting
+            if abs(contribution) > 0.05:  # Threshold for highlighting
                 color = emotion_colors.get(max_emotion, '#808080')
                 opacity = min(abs(contribution) * 10, 1.0)  # Scale opacity based on contribution
-
+                
                 html_parts.append(
                     f'<span style="background-color: {color}; '
                     f'opacity: {opacity}; padding: 2px 4px; margin: 1px; '
@@ -369,32 +348,18 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
                 html_parts.append(f'<span style="margin: 1px;">{word}</span>')
         else:
             html_parts.append(f'<span style="margin: 1px;">{word}</span>')
-
+    
     return ' '.join(html_parts)
 
 @st.cache_data
 def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
     """Analyze text with SHAP and return explanations"""
     try:
-        # Create explainer
-        explainer = create_shap_explainer(_model, _tokenizer)
-        
-        # Get SHAP values
-        shap_values = explainer([text])
-        
-        # Extract the SHAP values for the single input
-        if hasattr(shap_values, 'values'):
-            values = shap_values.values[0]  # First (and only) sample
-        else:
-            values = shap_values[0]
-        
-        return values
         # Use our custom word-level analysis instead of SHAP library
         word_contributions = get_word_level_shap_values(text, _model, _tokenizer, MAX_SEQUENCE_LENGTH)
         return word_contributions
-
+        
     except Exception as e:
-        st.error(f"SHAP analysis failed: {e}")
         st.error(f"Word-level analysis failed: {e}")
         return None
 
@@ -430,14 +395,14 @@ analyze_button = st.button("🔍 Analyze Sentiment", type="primary", use_contain
 if analyze_button and user_input and user_input.strip():
     with st.spinner("🔄 Analyzing your text..."):
         time.sleep(0.5)  # Small delay for better UX
-
+        
         processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
-
+        
         try:
             prediction = model.predict(processed_input)
             emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
             max_emotion = max(emotion_probs, key=emotion_probs.get)
-
+            
             # Display predicted emotion
             st.markdown(f"""
             <div class="result-container">
@@ -446,69 +411,69 @@ if analyze_button and user_input and user_input.strip():
                 </div>
             </div>
             """, unsafe_allow_html=True)
-
+            
             # Create bar chart for emotion probabilities
             # Prepare data for visualization
             emotions = list(emotion_probs.keys())
             probabilities = list(emotion_probs.values())
-
+            
             # Create DataFrame for easier plotting
             df = pd.DataFrame({
                 'Emotion': emotions,
                 'Probability': probabilities
             }).sort_values('Probability', ascending=True)
-
+            
             # Create bar chart
             fig, ax = plt.subplots(figsize=(10, 6))
-
+            
             # Color scheme - highlight the max emotion
             colors = ['#667eea' if emotion == max_emotion else '#a0a8d4' for emotion in df['Emotion']]
-
+            
             bars = ax.barh(df['Emotion'], df['Probability'], color=colors)
-
+            
             # Customize the plot
             ax.set_xlabel('Confidence Score', fontsize=12, fontweight='bold')
             ax.set_ylabel('Emotions', fontsize=12, fontweight='bold')
             ax.set_title('Emotion Analysis Results', fontsize=14, fontweight='bold', pad=20)
             ax.set_xlim(0, max(probabilities) * 1.1)
-
+            
             # Add value labels on bars
             for i, (bar, prob) in enumerate(zip(bars, df['Probability'])):
                 ax.text(prob + max(probabilities) * 0.01, bar.get_y() + bar.get_height()/2, 
                        f'{prob:.3f}', ha='left', va='center', fontweight='bold')
-
+            
             # Style the plot
             ax.grid(axis='x', alpha=0.3, linestyle='--')
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.spines['left'].set_color('#cccccc')
             ax.spines['bottom'].set_color('#cccccc')
-
+            
             # Set background color
             fig.patch.set_facecolor('white')
             ax.set_facecolor('#fafafa')
-
+            
             plt.tight_layout()
-
+            
             # Display the chart
             st.pyplot(fig)
-
+            
             # Clean up
             plt.close()
-
+            
             # SHAP Analysis Section
             st.markdown("### 🔍 Word-Level Analysis")
             st.markdown("See which words contribute most to each emotion prediction:")
-
+            
             with st.spinner("🧠 Analyzing word contributions..."):
-                # Get SHAP values for the input text
-                shap_values = analyze_with_shap(user_input, model, tokenizer, emotion_names_list)
-
-                if shap_values is not None:
+                # Get word-level contributions for the input text
+                word_contributions = analyze_with_shap(user_input, model, tokenizer, emotion_names_list)
+                
+                if word_contributions is not None and len(word_contributions) > 0:
                     # Create color-coded text
-                    colored_html = create_colored_text_html(user_input, shap_values, emotion_names_list, max_emotion)
-
-                    # Display SHAP analysis
+                    colored_html = create_colored_text_html(user_input, word_contributions, emotion_names_list, max_emotion)
+                    
+                    # Display word analysis
                     st.markdown(f"""
                     <div class="shap-container">
                         <h4 style="margin-top: 0; color: #333;">💡 Word Contributions</h4>
@@ -517,7 +482,7 @@ if analyze_button and user_input and user_input.strip():
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-
+                    
                     # Add legend
                     st.markdown("""
                     <div class="legend-container">
@@ -552,40 +517,41 @@ if analyze_button and user_input and user_input.strip():
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-
+                    
                     # Display detailed word contributions
                     st.markdown("#### 📊 Detailed Word Contributions")
-
+                    
                     # Create a DataFrame for word contributions
                     words = user_input.split()
                     word_data = []
-
+                    
                     for i, word in enumerate(words):
-                        if i < len(shap_values):
+                        if i < len(word_contributions):
                             for j, emotion in enumerate(emotion_names_list):
                                 word_data.append({
                                     'Word': word,
                                     'Emotion': emotion,
-                                    'Contribution': shap_values[i, j]
+                                    'Contribution': word_contributions[i, j]
                                 })
-
+                    
                     if word_data:
                         contrib_df = pd.DataFrame(word_data)
-
+                        
                         # Show top contributing words for the predicted emotion
+                        max_emotion_idx = emotion_names_list.index(max_emotion)
                         top_contrib = contrib_df[contrib_df['Emotion'] == max_emotion].nlargest(5, 'Contribution')
-
+                        
                         st.markdown(f"**Top words contributing to '{max_emotion}' prediction:**")
                         for _, row in top_contrib.iterrows():
-                            if row['Contribution'] > 0.01:
-                                st.write(f"• **{row['Word']}**: {row['Contribution']:.3f}")
+                            if abs(row['Contribution']) > 0.001:  # Lower threshold for visibility
+                                st.write(f"• **{row['Word']}**: {row['Contribution']:.4f}")
                 else:
-                    st.warning("⚠️ Could not perform SHAP analysis. Showing results without word-level explanations.")
-
+                    st.warning("⚠️ Could not perform word-level analysis. Showing results without word explanations.")
+            
         except Exception as e:
             st.error(f"❌ Error during prediction: {e}")
             st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
-
+            
 elif analyze_button and not user_input.strip():
     st.warning("⚠️ Please enter some text to analyze.")
 
