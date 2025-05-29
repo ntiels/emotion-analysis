@@ -518,9 +518,6 @@ if analyze_button and user_input and user_input.strip():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Display detailed word contributions
-                    st.markdown("#### 📊 Detailed Word Contributions")
-                    
                     # Create a DataFrame for word contributions
                     words = user_input.split()
                     word_data = []
