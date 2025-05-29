@@ -540,11 +540,6 @@ if analyze_button and user_input and user_input.strip():
                         # Show top contributing words for the predicted emotion
                         max_emotion_idx = emotion_names_list.index(max_emotion)
                         top_contrib = contrib_df[contrib_df['Emotion'] == max_emotion].nlargest(5, 'Contribution')
-                        
-                        st.markdown(f"**Top words contributing to '{max_emotion}' prediction:**")
-                        for _, row in top_contrib.iterrows():
-                            if abs(row['Contribution']) > 0.001:  # Lower threshold for visibility
-                                st.write(f"• **{row['Word']}**: {row['Contribution']:.4f}")
                 else:
                     st.warning("⚠️ Could not perform word-level analysis. Showing results without word explanations.")
             
