@@ -420,18 +420,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Simple, clean input section
-st.markdown("""
-<div class="input-section">
-    <label class="input-label">Enter your text</label>
-</div>
-""", unsafe_allow_html=True)
-
+# Single working input box
 user_input = st.text_area(
-    "",
+    "Enter your text",
     height=120,
-    placeholder="Write something to analyze its emotional content...",
-    label_visibility="collapsed"
+    placeholder="Write something to analyze its emotional content..."
 )
 
 analyze_button = st.button("Analyze", type="primary")
