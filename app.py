@@ -11,6 +11,11 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 import streamlit.components.v1 as components
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import shap
+from matplotlib.colors import LinearSegmentedColormap
 
 st.set_page_config(page_title="NLP Emotion Analyzer", layout="centered")
 
@@ -102,7 +107,7 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     
-    .emotion-scores {
+def preprocess_text_app(text, tokenizer, max_sequence_length=100):
         font-family: 'Courier New', monospace;
         background: #f8f9fa;
         padding: 1rem;
@@ -188,9 +193,113 @@ def load_nlp_resources():
         st.error(f"An unexpected error occurred loading tokenizer or model: {e}")
         st.stop()
 
-tokenizer, model = load_nlp_resources()
+def create_shap_explainer(model, tokenizer, max_length=100):
+    """Create SHAP explainer for the model"""
+    def model_predict(texts):
+        # Preprocess texts same way as training
+        processed_texts = []
+        for text in texts:
+            cleaned_text = text.lower()
+            cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
+            processed_texts.append(cleaned_text)
+        
+        # Convert to sequences and pad
+        sequences = tokenizer.texts_to_sequences(processed_texts)
+        padded = pad_sequences(sequences, maxlen=max_length)
+        
+        # Get predictions
+        predictions = model.predict(padded, verbose=0)
+        return predictions
+    
+    # Create explainer with a simple background (empty string)
+    explainer = shap.Explainer(model_predict, [""]*10)  # Small background dataset
+    return explainer
 
-def preprocess_text_app(text, tokenizer, max_sequence_length=100):
+def get_word_contributions(text, shap_values, emotion_names):
+    """Extract word-level contributions for each emotion"""
+    words = text.split()
+    
+    # Get contributions for each emotion
+    word_contributions = {}
+    for i, emotion in enumerate(emotion_names):
+        contributions = []
+        for j, word in enumerate(words):
+            if j < len(shap_values):
+                contributions.append({
+                    'word': word,
+                    'contribution': shap_values[j, i],
+                    'emotion': emotion
+                })
+        word_contributions[emotion] = contributions
+    
+    return word_contributions
+
+def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion):
+    """Create HTML with color-coded words based on SHAP values"""
+    words = text.split()
+    
+    # Color scheme for different emotions
+    emotion_colors = {
+        'joy': '#FFD700',      # Gold
+        'love': '#FF69B4',     # Hot Pink
+        'anger': '#FF4500',    # Red Orange
+        'fear': '#8A2BE2',     # Blue Violet
+        'sadness': '#4169E1',  # Royal Blue
+        'surprise': '#32CD32', # Lime Green
+        'neutral': '#808080'   # Gray
+    }
+    
+    html_parts = []
+    
+    for i, word in enumerate(words):
+        if i < len(shap_values):
+            # Find the emotion with highest contribution for this word
+            word_contribs = shap_values[i]
+            max_contrib_idx = np.argmax(np.abs(word_contribs))
+            max_emotion = emotion_names[max_contrib_idx]
+            contribution = word_contribs[max_contrib_idx]
+            
+            # Only color if contribution is significant
+            if abs(contribution) > 0.01:  # Threshold for highlighting
+                color = emotion_colors.get(max_emotion, '#808080')
+                opacity = min(abs(contribution) * 10, 1.0)  # Scale opacity based on contribution
+                
+                html_parts.append(
+                    f'<span style="background-color: {color}; '
+                    f'opacity: {opacity}; padding: 2px 4px; margin: 1px; '
+                    f'border-radius: 3px; font-weight: bold;" '
+                    f'title="{max_emotion}: {contribution:.3f}">{word}</span>'
+                )
+            else:
+                html_parts.append(f'<span style="margin: 1px;">{word}</span>')
+        else:
+            html_parts.append(f'<span style="margin: 1px;">{word}</span>')
+    
+    return ' '.join(html_parts)
+
+@st.cache_data
+def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
+    """Analyze text with SHAP and return explanations"""
+    try:
+        # Create explainer
+        explainer = create_shap_explainer(_model, _tokenizer)
+        
+        # Get SHAP values
+        shap_values = explainer([text])
+        
+        # Extract the SHAP values for the single input
+        if hasattr(shap_values, 'values'):
+            values = shap_values.values[0]  # First (and only) sample
+        else:
+            values = shap_values[0]
+        
+        return values
+        
+    except Exception as e:
+        st.error(f"SHAP analysis failed: {e}")
+        return None
+
+tokenizer, model = load_nlp_resources()
     cleaned_text = text.lower()
     cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
     sequences = tokenizer.texts_to_sequences([cleaned_text])
@@ -292,6 +401,92 @@ if analyze_button and user_input and user_input.strip():
             
             # Clean up
             plt.close()
+            
+            # SHAP Analysis Section
+            st.markdown("### 🔍 Word-Level Analysis")
+            st.markdown("See which words contribute most to each emotion prediction:")
+            
+            with st.spinner("🧠 Analyzing word contributions..."):
+                # Get SHAP values for the input text
+                shap_values = analyze_with_shap(user_input, model, tokenizer, emotion_names_list)
+                
+                if shap_values is not None:
+                    # Create color-coded text
+                    colored_html = create_colored_text_html(user_input, shap_values, emotion_names_list, max_emotion)
+                    
+                    # Display SHAP analysis
+                    st.markdown(f"""
+                    <div class="shap-container">
+                        <h4 style="margin-top: 0; color: #333;">💡 Word Contributions</h4>
+                        <div class="shap-text">
+                            {colored_html}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Add legend
+                    st.markdown("""
+                    <div class="legend-container">
+                        <strong>Color Legend:</strong>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FFD700;"></div>
+                            <span>Joy</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FF69B4;"></div>
+                            <span>Love</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FF4500;"></div>
+                            <span>Anger</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #8A2BE2;"></div>
+                            <span>Fear</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #4169E1;"></div>
+                            <span>Sadness</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #32CD32;"></div>
+                            <span>Surprise</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #808080;"></div>
+                            <span>Neutral</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Display detailed word contributions
+                    st.markdown("#### 📊 Detailed Word Contributions")
+                    
+                    # Create a DataFrame for word contributions
+                    words = user_input.split()
+                    word_data = []
+                    
+                    for i, word in enumerate(words):
+                        if i < len(shap_values):
+                            for j, emotion in enumerate(emotion_names_list):
+                                word_data.append({
+                                    'Word': word,
+                                    'Emotion': emotion,
+                                    'Contribution': shap_values[i, j]
+                                })
+                    
+                    if word_data:
+                        contrib_df = pd.DataFrame(word_data)
+                        
+                        # Show top contributing words for the predicted emotion
+                        top_contrib = contrib_df[contrib_df['Emotion'] == max_emotion].nlargest(5, 'Contribution')
+                        
+                        st.markdown(f"**Top words contributing to '{max_emotion}' prediction:**")
+                        for _, row in top_contrib.iterrows():
+                            if row['Contribution'] > 0.01:
+                                st.write(f"• **{row['Word']}**: {row['Contribution']:.3f}")
+                else:
+                    st.warning("⚠️ Could not perform SHAP analysis. Showing results without word-level explanations.")
             
         except Exception as e:
             st.error(f"❌ Error during prediction: {e}")
