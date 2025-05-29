@@ -3,3 +3,4 @@ tensorflow
 keras>=2.15.0
 transformers>=4.30.0
 google-api-python-client
+matplotlib
