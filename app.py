@@ -159,9 +159,33 @@ st.markdown("""
         margin-top: 0.5rem;
     }
     
-    /* Chart section */
+    /* Chart section - REMOVE CONTAINER STYLING */
     .chart-section {
         margin: 2rem 0;
+    }
+    
+    /* Hide matplotlib container borders and backgrounds */
+    .stPlotlyChart,
+    .stPyplot {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .stPyplot > div {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    /* Remove any chart container styling */
+    div[data-testid="stPlotlyChart"],
+    div[data-testid="stPyplot"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
     
     .section-title {
@@ -249,7 +273,6 @@ st.markdown("""
 MAX_SEQUENCE_LENGTH = 100
 emotion_categories = {0:'neutral', 1:'surprise', 2:'fear', 3:'sadness', 4:'joy', 5:'anger', 6:'love'}
 emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categories))]
-
 TOKENIZER_FILE_ID = "19_8KtzNfKEyZJY3NsCtJyMbj4fAYxLrt"
 MODEL_FILE_ID = "1E2sPDSR6m6vCFHut5tTXOswvjscfy81Q"
 LOCAL_TOKENIZER_PATH = "tokenizer.pkl"
@@ -400,10 +423,10 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
     return ' '.join(html_parts)
 
 @st.cache_data
-def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
+def analyze_with_shap(text, *model, *tokenizer, *emotion*names):
     """Analyze text with SHAP and return explanations"""
     try:
-        word_contributions = get_word_level_shap_values(text, _model, _tokenizer, MAX_SEQUENCE_LENGTH)
+        word_contributions = get_word_level_shap_values(text, *model, *tokenizer, MAX_SEQUENCE_LENGTH)
         return word_contributions
     except Exception as e:
         st.error(f"Analysis failed: {e}")
@@ -458,14 +481,15 @@ if analyze_button and user_input and user_input.strip():
             probabilities = list(emotion_probs.values())
             df = pd.DataFrame({'Emotion': emotions, 'Probability': probabilities}).sort_values('Probability', ascending=True)
             
-            # Create clean chart
+            # Create clean chart with transparent background
             fig, ax = plt.subplots(figsize=(10, 5))
-            fig.patch.set_facecolor('white')
+            fig.patch.set_facecolor('none')  # Transparent figure background
+            fig.patch.set_alpha(0.0)
             
             colors = ['#667eea' if emotion == max_emotion else '#e2e8f0' for emotion in df['Emotion']]
             bars = ax.barh(df['Emotion'], df['Probability'], color=colors, height=0.6)
             
-            # Clean styling
+            # Clean styling with transparent background
             ax.set_xlabel('')
             ax.set_ylabel('')
             ax.set_xlim(0, max(probabilities) * 1.1)
@@ -475,7 +499,8 @@ if analyze_button and user_input and user_input.strip():
             ax.spines['left'].set_visible(False)
             ax.tick_params(left=False, bottom=False)
             ax.grid(axis='x', alpha=0.2, linestyle='-', linewidth=0.5)
-            ax.set_facecolor('white')
+            ax.set_facecolor('none')  # Transparent axes background
+            ax.patch.set_alpha(0.0)
             
             # Add value labels
             for bar, prob in zip(bars, df['Probability']):
@@ -483,7 +508,9 @@ if analyze_button and user_input and user_input.strip():
                        f'{prob:.2f}', ha='left', va='center', fontweight='500', fontsize=11)
             
             plt.tight_layout()
-            st.pyplot(fig)
+            
+            # Display chart without container styling
+            st.pyplot(fig, transparent=True, use_container_width=True)
             plt.close()
             
             st.markdown('</div>', unsafe_allow_html=True)
