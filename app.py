@@ -19,7 +19,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 st.set_page_config(page_title="Emotion Analyzer", layout="centered", initial_sidebar_state="collapsed")
 
-# Clean, modern CSS styling
+# Clean, modern CSS styling - FIXED INPUT BOX STYLING
 st.markdown("""
 <style>
     /* Hide Streamlit default elements */
@@ -80,43 +80,43 @@ st.markdown("""
         display: block;
     }
     
-    /* Streamlit text area styling */
+    /* FIXED: Streamlit text area styling - removed !important overrides that break functionality */
     .stTextArea textarea {
-        border: 2px solid #e2e8f0 !important;
-        border-radius: 12px !important;
-        padding: 16px !important;
-        font-size: 16px !important;
-        font-family: 'Inter', sans-serif !important;
-        background: #fafafa !important;
-        transition: all 0.2s ease !important;
-        resize: vertical !important;
-        min-height: 120px !important;
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        font-size: 16px;
+        font-family: 'Inter', sans-serif;
+        background: #fafafa;
+        transition: all 0.2s ease;
+        resize: vertical;
+        min-height: 120px;
     }
     
     .stTextArea textarea:focus {
-        border-color: #667eea !important;
-        background: #ffffff !important;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-        outline: none !important;
+        border-color: #667eea;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
     }
     
     /* Button styling */
     .stButton button {
-        width: 100% !important;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: white !important;
-        border: none !important;
-        padding: 14px 28px !important;
-        font-size: 16px !important;
-        font-weight: 500 !important;
-        border-radius: 12px !important;
-        transition: all 0.2s ease !important;
-        letter-spacing: 0.5px !important;
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 14px 28px;
+        font-size: 16px;
+        font-weight: 500;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        letter-spacing: 0.5px;
     }
     
     .stButton button:hover {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.25);
     }
     
     /* Result cards */
@@ -211,12 +211,12 @@ st.markdown("""
     
     /* Spinner */
     .stSpinner > div {
-        border-color: #667eea !important;
+        border-color: #667eea;
     }
     
     /* Hide Streamlit branding */
     .viewerBadge_container__1QSob {
-        display: none !important;
+        display: none;
     }
     
     /* Responsive design */
@@ -413,19 +413,22 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Input section
+# Input section with improved structure
 st.markdown("""
 <div class="input-section">
     <label class="input-label">Enter your text</label>
 </div>
 """, unsafe_allow_html=True)
 
-user_input = st.text_area(
-    "",
-    height=120,
-    placeholder="Write something to analyze its emotional content...",
-    label_visibility="collapsed"
-)
+# Use a container to better control the input area
+with st.container():
+    user_input = st.text_area(
+        "Enter your text",
+        height=120,
+        placeholder="Write something to analyze its emotional content...",
+        key="emotion_input",
+        help="Type or paste the text you want to analyze for emotional content"
+    )
 
 analyze_button = st.button("Analyze", type="primary")
 
