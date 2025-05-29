@@ -107,12 +107,44 @@ st.markdown("""
         margin-bottom: 1rem;
     }
     
-def preprocess_text_app(text, tokenizer, max_sequence_length=100):
-        font-family: 'Courier New', monospace;
+    .shap-container {
         background: #f8f9fa;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        border: 1px solid #e9ecef;
+    }
+    
+    .shap-text {
+        font-family: 'Courier New', monospace;
+        background: white;
         padding: 1rem;
         border-radius: 5px;
         border: 1px solid #e9ecef;
+        line-height: 1.6;
+    }
+    
+    .legend-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 5px;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        border: 1px solid #ccc;
     }
     
     .footer {
@@ -129,6 +161,7 @@ def preprocess_text_app(text, tokenizer, max_sequence_length=100):
 </style>
 """, unsafe_allow_html=True)
 
+# Constants
 MAX_SEQUENCE_LENGTH = 100
 emotion_categories = {0:'neutral', 1:'surprise', 2:'fear', 3:'sadness', 4:'joy', 5:'anger', 6:'love'}
 emotion_names_list = [emotion_categories[i] for i in range(len(emotion_categories))]
@@ -138,9 +171,17 @@ MODEL_FILE_ID = "1E2sPDSR6m6vCFHut5tTXOswvjscfy81Q"
 LOCAL_TOKENIZER_PATH = "tokenizer.pkl"
 LOCAL_MODEL_PATH = "model.keras"
 
+def preprocess_text_app(text, tokenizer, max_sequence_length=100):
+    """Preprocess text for model prediction"""
+    cleaned_text = text.lower()
+    cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
+    sequences = tokenizer.texts_to_sequences([cleaned_text])
+    padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
+    return padded_sequences
 
 @st.cache_resource
 def load_nlp_resources():
+    """Load tokenizer and model from Google Drive"""
     creds = None
     try:
         creds_info = dict(st.secrets["gcp_service_account"])
@@ -155,7 +196,8 @@ def load_nlp_resources():
     service = None
     try:
         service = build('drive', 'v3', credentials=creds)
-
+        
+        # Download tokenizer if not exists
         if not os.path.exists(LOCAL_TOKENIZER_PATH):
             request = service.files().get_media(fileId=TOKENIZER_FILE_ID)
             fh = io.BytesIO()
@@ -167,6 +209,7 @@ def load_nlp_resources():
             with open(LOCAL_TOKENIZER_PATH, 'wb') as f:
                 f.write(fh.read())
 
+        # Download model if not exists
         if not os.path.exists(LOCAL_MODEL_PATH):
             request = service.files().get_media(fileId=MODEL_FILE_ID)
             fh = io.BytesIO()
@@ -177,6 +220,7 @@ def load_nlp_resources():
             fh.seek(0)
             with open(LOCAL_MODEL_PATH, 'wb') as f:
                 f.write(fh.read())
+                
     except HttpError as error:
         st.error(f"An error occurred with Google Drive API: {error}")
         st.stop()
@@ -184,6 +228,7 @@ def load_nlp_resources():
         st.error(f"An unexpected error occurred during download: {e}")
         st.stop()
 
+    # Load tokenizer and model
     try:
         with open(LOCAL_TOKENIZER_PATH, 'rb') as f:
             tokenizer = pickle.load(f)
@@ -299,12 +344,8 @@ def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
         st.error(f"SHAP analysis failed: {e}")
         return None
 
+# Load resources
 tokenizer, model = load_nlp_resources()
-cleaned_text = text.lower()
-cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
-sequences = tokenizer.texts_to_sequences([cleaned_text])
-padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
-return padded_sequences
 
 # Custom HTML header
 st.markdown("""
@@ -328,14 +369,16 @@ user_input = st.text_area(
     placeholder="Type something like 'This movie was fantastic!' or 'I hated the food.'",
     help="Enter any text to analyze its emotional sentiment"
 )
+
 # Custom styled button using Streamlit
 analyze_button = st.button("🔍 Analyze Sentiment", type="primary", use_container_width=True)
 
 if analyze_button and user_input and user_input.strip():
     with st.spinner("🔄 Analyzing your text..."):
         time.sleep(0.5)  # Small delay for better UX
+        
         processed_input = preprocess_text_app(user_input, tokenizer, MAX_SEQUENCE_LENGTH)
-
+        
         try:
             prediction = model.predict(processed_input)
             emotion_probs = {emotion: round(float(prob), 3) for emotion, prob in zip(emotion_names_list, prediction[0])}
@@ -351,9 +394,6 @@ if analyze_button and user_input and user_input.strip():
             """, unsafe_allow_html=True)
             
             # Create bar chart for emotion probabilities
-            import pandas as pd
-            import matplotlib.pyplot as plt
-            
             # Prepare data for visualization
             emotions = list(emotion_probs.keys())
             probabilities = list(emotion_probs.values())
@@ -491,11 +531,9 @@ if analyze_button and user_input and user_input.strip():
         except Exception as e:
             st.error(f"❌ Error during prediction: {e}")
             st.warning("Please ensure your model's input shape and prediction logic match your training setup.")
-
+            
 elif analyze_button and not user_input.strip():
     st.warning("⚠️ Please enter some text to analyze.")
-
-
 
 # Custom footer
 st.markdown("""
