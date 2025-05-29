@@ -241,10 +241,18 @@ def load_nlp_resources():
 def create_shap_explainer(model, tokenizer, max_length=100):
     """Create SHAP explainer for the model"""
     def model_predict(texts):
+        # Handle both single strings and lists of strings
+        if isinstance(texts, str):
+            texts = [texts]
+        elif isinstance(texts, np.ndarray):
+            texts = texts.tolist()
+        
         # Preprocess texts same way as training
         processed_texts = []
         for text in texts:
-            cleaned_text = text.lower()
+            if isinstance(text, (list, np.ndarray)):
+                text = str(text)
+            cleaned_text = str(text).lower()
             cleaned_text = re.sub(r"[^a-z0-9\s!?]", "", cleaned_text)
             processed_texts.append(cleaned_text)
         
@@ -256,28 +264,49 @@ def create_shap_explainer(model, tokenizer, max_length=100):
         predictions = model.predict(padded, verbose=0)
         return predictions
     
-    # Create explainer with a simple background (empty string)
-    explainer = shap.Explainer(model_predict, [""]*10)  # Small background dataset
+    # Create explainer - use empty strings as background
+    background_data = [""] * 5
+    explainer = shap.Explainer(model_predict, background_data)
     return explainer
 
-def get_word_contributions(text, shap_values, emotion_names):
-    """Extract word-level contributions for each emotion"""
-    words = text.split()
-    
-    # Get contributions for each emotion
-    word_contributions = {}
-    for i, emotion in enumerate(emotion_names):
-        contributions = []
-        for j, word in enumerate(words):
-            if j < len(shap_values):
-                contributions.append({
-                    'word': word,
-                    'contribution': shap_values[j, i],
-                    'emotion': emotion
-                })
-        word_contributions[emotion] = contributions
-    
-    return word_contributions
+def get_word_level_shap_values(text, model, tokenizer, max_length=100):
+    """Get SHAP values for individual words in the text"""
+    try:
+        words = text.split()
+        if len(words) == 0:
+            return None
+            
+        # Create word-level explanations by masking individual words
+        word_contributions = np.zeros((len(words), len(emotion_names_list)))
+        
+        # Get baseline prediction (empty text)
+        baseline_input = preprocess_text_app("", tokenizer, max_length)
+        baseline_pred = model.predict(baseline_input, verbose=0)[0]
+        
+        # Get full text prediction
+        full_input = preprocess_text_app(text, tokenizer, max_length)
+        full_pred = model.predict(full_input, verbose=0)[0]
+        
+        # Calculate contribution of each word by removing it
+        for i, word in enumerate(words):
+            # Create text without this word
+            masked_words = words[:i] + words[i+1:]
+            masked_text = " ".join(masked_words)
+            
+            if masked_text.strip():
+                masked_input = preprocess_text_app(masked_text, tokenizer, max_length)
+                masked_pred = model.predict(masked_input, verbose=0)[0]
+            else:
+                masked_pred = baseline_pred
+            
+            # Contribution = full_prediction - prediction_without_word
+            word_contributions[i] = full_pred - masked_pred
+        
+        return word_contributions
+        
+    except Exception as e:
+        print(f"Error in word-level SHAP: {e}")
+        return None
 
 def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion):
     """Create HTML with color-coded words based on SHAP values"""
@@ -326,22 +355,12 @@ def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion
 def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
     """Analyze text with SHAP and return explanations"""
     try:
-        # Create explainer
-        explainer = create_shap_explainer(_model, _tokenizer)
-        
-        # Get SHAP values
-        shap_values = explainer([text])
-        
-        # Extract the SHAP values for the single input
-        if hasattr(shap_values, 'values'):
-            values = shap_values.values[0]  # First (and only) sample
-        else:
-            values = shap_values[0]
-        
-        return values
+        # Use our custom word-level analysis instead of SHAP library
+        word_contributions = get_word_level_shap_values(text, _model, _tokenizer, MAX_SEQUENCE_LENGTH)
+        return word_contributions
         
     except Exception as e:
-        st.error(f"SHAP analysis failed: {e}")
+        st.error(f"Word-level analysis failed: {e}")
         return None
 
 # Load resources
