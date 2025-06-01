@@ -323,13 +323,13 @@ def load_nlp_resources():
         st.stop()
 
 @st.cache_resource
-def initialize_shap_explainer(_model, _tokenizer, background_size=50):
+def initialize_shap_explainer(_model, _tokenizer, background_size=20):
     """Initialize SHAP DeepExplainer with background data"""
     try:
         # Create diverse background samples for the explainer
         background_texts = [
             "I am happy today",
-            "This is terrible news",
+            "This is terrible news", 
             "I feel scared about this",
             "What a wonderful surprise",
             "I love spending time with family",
@@ -350,10 +350,7 @@ def initialize_shap_explainer(_model, _tokenizer, background_size=50):
             "I am thrilled about this opportunity"
         ]
         
-        # Extend background samples if needed
-        while len(background_texts) < background_size:
-            background_texts.extend(background_texts[:min(len(background_texts), background_size - len(background_texts))])
-        
+        # Use smaller background size to avoid memory issues
         background_texts = background_texts[:background_size]
         
         # Preprocess background data
@@ -363,13 +360,31 @@ def initialize_shap_explainer(_model, _tokenizer, background_size=50):
             background_data.append(processed[0])
         
         background_array = np.array(background_data)
+        print(f"Background array shape: {background_array.shape}")
         
-        # Initialize SHAP DeepExplainer
-        explainer = shap.DeepExplainer(_model, background_array)
+        # Initialize SHAP DeepExplainer with a prediction function wrapper
+        def model_predict(x):
+            """Wrapper function for model prediction"""
+            try:
+                predictions = _model.predict(x, verbose=0)
+                print(f"Model predictions shape: {predictions.shape}")
+                return predictions
+            except Exception as e:
+                print(f"Model prediction error: {e}")
+                raise
+        
+        # Test the model with background data first
+        test_pred = model_predict(background_array[:2])
+        print(f"Test prediction successful, shape: {test_pred.shape}")
+        
+        # Initialize explainer
+        explainer = shap.DeepExplainer(model_predict, background_array)
+        print("SHAP DeepExplainer initialized successfully")
         
         return explainer
         
     except Exception as e:
+        print(f"Detailed explainer initialization error: {e}")
         st.error(f"Failed to initialize SHAP explainer: {e}")
         return None
 
@@ -379,20 +394,46 @@ def get_shap_explanations(text, explainer, tokenizer, emotion_names):
         # Preprocess the input text
         processed_input = preprocess_text_app(text, tokenizer, MAX_SEQUENCE_LENGTH)
         
-        # Get SHAP values
+        # Get SHAP values - this returns a list of arrays for multi-class classification
         shap_values = explainer.shap_values(processed_input)
         
-        # Convert to numpy array if needed
+        # Debug: Print SHAP values structure
+        print(f"SHAP values type: {type(shap_values)}")
+        if shap_values is not None:
+            if isinstance(shap_values, list):
+                print(f"SHAP values list length: {len(shap_values)}")
+                if len(shap_values) > 0:
+                    print(f"First element shape: {shap_values[0].shape if hasattr(shap_values[0], 'shape') else 'No shape'}")
+            else:
+                print(f"SHAP values shape: {shap_values.shape if hasattr(shap_values, 'shape') else 'No shape'}")
+        
+        # Handle different SHAP value formats
+        if shap_values is None:
+            raise ValueError("SHAP explainer returned None")
+        
+        # For multi-class classification, SHAP returns a list of arrays
         if isinstance(shap_values, list):
-            shap_values = np.array(shap_values)
+            # Stack the arrays to create (n_classes, n_samples, n_features)
+            if len(shap_values) > 0 and shap_values[0] is not None:
+                stacked_shap = np.stack(shap_values, axis=0)
+                # If we have multiple samples, take the first one
+                if len(stacked_shap.shape) == 3 and stacked_shap.shape[1] > 0:
+                    final_shap = stacked_shap[:, 0, :]  # Shape: (n_classes, n_features)
+                else:
+                    final_shap = stacked_shap
+            else:
+                raise ValueError("SHAP values list contains None or empty arrays")
+        else:
+            # Single array case
+            final_shap = shap_values
+            if len(final_shap.shape) == 2 and final_shap.shape[0] == 1:
+                final_shap = final_shap[0]  # Remove batch dimension
         
-        # Reshape if necessary - SHAP values should be (n_classes, n_samples, n_features)
-        if len(shap_values.shape) == 3:
-            shap_values = shap_values[:, 0, :]  # Take first sample
-        
-        return shap_values, processed_input[0]
+        print(f"Final SHAP shape: {final_shap.shape}")
+        return final_shap, processed_input[0]
         
     except Exception as e:
+        print(f"Detailed SHAP error: {e}")
         st.error(f"Error getting SHAP explanations: {e}")
         return None, None
 
@@ -470,6 +511,32 @@ def create_shap_colored_text_html(text, shap_values, tokenized_sequence, tokeniz
         
         html_parts = []
         
+        # Ensure SHAP values are in the right format
+        if shap_values is None:
+            return text
+            
+        print(f"SHAP values shape in coloring: {shap_values.shape}")
+        print(f"Number of emotion names: {len(emotion_names)}")
+        
+        # Handle different SHAP value shapes
+        if len(shap_values.shape) == 1:
+            # Single class case - convert to multi-class format
+            shap_matrix = np.zeros((len(emotion_names), len(shap_values)))
+            shap_matrix[0] = shap_values  # Put all values in first class
+        elif len(shap_values.shape) == 2:
+            if shap_values.shape[0] == len(emotion_names):
+                # Shape is (n_classes, n_features) - correct format
+                shap_matrix = shap_values
+            elif shap_values.shape[1] == len(emotion_names):
+                # Shape is (n_features, n_classes) - transpose
+                shap_matrix = shap_values.T
+            else:
+                # Use first row for all classes
+                shap_matrix = np.tile(shap_values[0], (len(emotion_names), 1))
+        else:
+            st.warning(f"Unexpected SHAP values shape: {shap_values.shape}")
+            return text
+        
         for word_info in word_mappings:
             word = word_info['word']
             token_indices = word_info['token_indices']
@@ -479,11 +546,11 @@ def create_shap_colored_text_html(text, shap_values, tokenized_sequence, tokeniz
                 word_shap_values = np.zeros(len(emotion_names))
                 
                 for token_idx in token_indices:
-                    if token_idx < shap_values.shape[1]:  # Check bounds
+                    if token_idx < shap_matrix.shape[1]:  # Check bounds
                         # Sum across all emotion classes for this token
                         for class_idx in range(len(emotion_names)):
-                            if class_idx < shap_values.shape[0]:
-                                word_shap_values[class_idx] += shap_values[class_idx, token_idx]
+                            if class_idx < shap_matrix.shape[0]:
+                                word_shap_values[class_idx] += shap_matrix[class_idx, token_idx]
                 
                 # Find the emotion with highest absolute SHAP value
                 max_abs_idx = np.argmax(np.abs(word_shap_values))
@@ -491,9 +558,9 @@ def create_shap_colored_text_html(text, shap_values, tokenized_sequence, tokeniz
                 max_value = word_shap_values[max_abs_idx]
                 
                 # Only highlight if the SHAP value is significant
-                if abs(max_value) > 0.01:  # Threshold for significance
+                if abs(max_value) > 0.001:  # Lower threshold for significance
                     color = emotion_colors.get(max_emotion, '#808080')
-                    opacity = min(abs(max_value) * 2, 1.0)  # Scale opacity
+                    opacity = min(abs(max_value) * 10, 1.0)  # Scale opacity
                     
                     html_parts.append(
                         f'<span style="background-color: {color}; '
@@ -511,6 +578,7 @@ def create_shap_colored_text_html(text, shap_values, tokenized_sequence, tokeniz
         return ' '.join(html_parts)
         
     except Exception as e:
+        print(f"Error creating colored text: {e}")
         st.error(f"Error creating colored text: {e}")
         return text
 
