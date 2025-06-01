@@ -322,286 +322,95 @@ def load_nlp_resources():
         st.error(f"Loading error: {e}")
         st.stop()
 
-@st.cache_resource
-def initialize_shap_explainer(_model, _tokenizer, background_size=20):
-    """Initialize SHAP DeepExplainer with background data"""
+def get_word_level_shap_values(text, model, tokenizer, max_length=100):
+    """Get SHAP values for individual words in the text"""
     try:
-        # Create diverse background samples for the explainer
-        background_texts = [
-            "I am happy today",
-            "This is terrible news", 
-            "I feel scared about this",
-            "What a wonderful surprise",
-            "I love spending time with family",
-            "This makes me angry",
-            "The weather is nice",
-            "I don't know how to feel",
-            "Everything seems normal",
-            "This is exciting news",
-            "I feel sad about the situation",
-            "This is frightening",
-            "I am neutral on this topic",
-            "What an amazing discovery",
-            "I hate when this happens",
-            "I adore this place",
-            "This is confusing",
-            "I feel peaceful",
-            "This is disappointing",
-            "I am thrilled about this opportunity"
-        ]
+        words = text.split()
+        if len(words) == 0:
+            return None
+            
+        word_contributions = np.zeros((len(words), len(emotion_names_list)))
         
-        # Use smaller background size to avoid memory issues
-        background_texts = background_texts[:background_size]
+        # Get baseline prediction (empty text)
+        baseline_input = preprocess_text_app("", tokenizer, max_length)
+        baseline_pred = model.predict(baseline_input, verbose=0)[0]
         
-        # Preprocess background data
-        background_data = []
-        for text in background_texts:
-            processed = preprocess_text_app(text, _tokenizer, MAX_SEQUENCE_LENGTH)
-            background_data.append(processed[0])
+        # Get full text prediction
+        full_input = preprocess_text_app(text, tokenizer, max_length)
+        full_pred = model.predict(full_input, verbose=0)[0]
         
-        background_array = np.array(background_data)
-        print(f"Background array shape: {background_array.shape}")
+        # Calculate contribution of each word by removing it
+        for i, word in enumerate(words):
+            masked_words = words[:i] + words[i+1:]
+            masked_text = " ".join(masked_words)
+            
+            if masked_text.strip():
+                masked_input = preprocess_text_app(masked_text, tokenizer, max_length)
+                masked_pred = model.predict(masked_input, verbose=0)[0]
+            else:
+                masked_pred = baseline_pred
+            
+            word_contributions[i] = full_pred - masked_pred
         
-        # Initialize SHAP DeepExplainer with a prediction function wrapper
-        def model_predict(x):
-            """Wrapper function for model prediction"""
-            try:
-                predictions = _model.predict(x, verbose=0)
-                print(f"Model predictions shape: {predictions.shape}")
-                return predictions
-            except Exception as e:
-                print(f"Model prediction error: {e}")
-                raise
-        
-        # Test the model with background data first
-        test_pred = model_predict(background_array[:2])
-        print(f"Test prediction successful, shape: {test_pred.shape}")
-        
-        # Initialize explainer
-        explainer = shap.DeepExplainer(model_predict, background_array)
-        print("SHAP DeepExplainer initialized successfully")
-        
-        return explainer
+        return word_contributions
         
     except Exception as e:
-        print(f"Detailed explainer initialization error: {e}")
-        st.error(f"Failed to initialize SHAP explainer: {e}")
+        print(f"Error in word-level SHAP: {e}")
         return None
 
-def get_shap_explanations(text, explainer, tokenizer, emotion_names):
-    """Get SHAP explanations for the input text"""
-    try:
-        # Preprocess the input text
-        processed_input = preprocess_text_app(text, tokenizer, MAX_SEQUENCE_LENGTH)
-        
-        # Get SHAP values - this returns a list of arrays for multi-class classification
-        shap_values = explainer.shap_values(processed_input)
-        
-        # Debug: Print SHAP values structure
-        print(f"SHAP values type: {type(shap_values)}")
-        if shap_values is not None:
-            if isinstance(shap_values, list):
-                print(f"SHAP values list length: {len(shap_values)}")
-                if len(shap_values) > 0:
-                    print(f"First element shape: {shap_values[0].shape if hasattr(shap_values[0], 'shape') else 'No shape'}")
-            else:
-                print(f"SHAP values shape: {shap_values.shape if hasattr(shap_values, 'shape') else 'No shape'}")
-        
-        # Handle different SHAP value formats
-        if shap_values is None:
-            raise ValueError("SHAP explainer returned None")
-        
-        # For multi-class classification, SHAP returns a list of arrays
-        if isinstance(shap_values, list):
-            # Stack the arrays to create (n_classes, n_samples, n_features)
-            if len(shap_values) > 0 and shap_values[0] is not None:
-                stacked_shap = np.stack(shap_values, axis=0)
-                # If we have multiple samples, take the first one
-                if len(stacked_shap.shape) == 3 and stacked_shap.shape[1] > 0:
-                    final_shap = stacked_shap[:, 0, :]  # Shape: (n_classes, n_features)
-                else:
-                    final_shap = stacked_shap
-            else:
-                raise ValueError("SHAP values list contains None or empty arrays")
-        else:
-            # Single array case
-            final_shap = shap_values
-            if len(final_shap.shape) == 2 and final_shap.shape[0] == 1:
-                final_shap = final_shap[0]  # Remove batch dimension
-        
-        print(f"Final SHAP shape: {final_shap.shape}")
-        return final_shap, processed_input[0]
-        
-    except Exception as e:
-        print(f"Detailed SHAP error: {e}")
-        st.error(f"Error getting SHAP explanations: {e}")
-        return None, None
-
-def map_tokens_to_words(text, tokenized_sequence, tokenizer):
-    """Map tokenized sequence back to original words"""
-    try:
-        words = text.split()
-        
-        # Get the reverse word index
-        reverse_word_index = {v: k for k, v in tokenizer.word_index.items()}
-        
-        # Convert sequence to words
-        sequence_words = []
-        for token_id in tokenized_sequence:
-            if token_id != 0:  # Skip padding tokens
-                word = reverse_word_index.get(token_id, '<UNK>')
-                sequence_words.append(word)
-        
-        # Try to align tokenized words with original words
-        word_mappings = []
-        seq_idx = 0
-        
-        for original_word in words:
-            original_word_clean = re.sub(r"[^a-z0-9]", "", original_word.lower())
-            
-            # Find matching tokens
-            token_indices = []
-            temp_seq_idx = seq_idx
-            
-            # Look for exact match first
-            if temp_seq_idx < len(sequence_words) and sequence_words[temp_seq_idx] == original_word_clean:
-                token_indices.append(temp_seq_idx)
-                seq_idx += 1
-            else:
-                # Look for partial matches or skip unknown words
-                found = False
-                for i in range(temp_seq_idx, min(temp_seq_idx + 3, len(sequence_words))):
-                    if sequence_words[i] in original_word_clean or original_word_clean in sequence_words[i]:
-                        token_indices.append(i)
-                        seq_idx = i + 1
-                        found = True
-                        break
-                
-                if not found and seq_idx < len(sequence_words):
-                    # Use the next available token
-                    token_indices.append(seq_idx)
-                    seq_idx += 1
-            
-            word_mappings.append({
-                'word': original_word,
-                'token_indices': token_indices
-            })
-        
-        return word_mappings
-        
-    except Exception as e:
-        print(f"Error in token mapping: {e}")
-        return [{'word': word, 'token_indices': []} for word in text.split()]
-
-def create_shap_colored_text_html(text, shap_values, tokenized_sequence, tokenizer, emotion_names):
+def create_colored_text_html(text, shap_values, emotion_names, predicted_emotion):
     """Create HTML with color-coded words based on SHAP values"""
-    try:
-        words = text.split()
-        word_mappings = map_tokens_to_words(text, tokenized_sequence, tokenizer)
-        
-        emotion_colors = {
-            'joy': '#FFD700',
-            'love': '#FF69B4', 
-            'anger': '#FF4500',
-            'fear': '#8A2BE2',
-            'sadness': '#4169E1',
-            'surprise': '#32CD32',
-            'neutral': '#808080'
-        }
-        
-        html_parts = []
-        
-        # Ensure SHAP values are in the right format
-        if shap_values is None:
-            return text
+    words = text.split()
+    
+    emotion_colors = {
+        'joy': '#FFD700',
+        'love': '#FF69B4',
+        'anger': '#FF4500',
+        'fear': '#8A2BE2',
+        'sadness': '#4169E1',
+        'surprise': '#32CD32',
+        'neutral': '#808080'
+    }
+    
+    html_parts = []
+    
+    for i, word in enumerate(words):
+        if i < len(shap_values):
+            word_contribs = shap_values[i]
+            max_contrib_idx = np.argmax(np.abs(word_contribs))
+            max_emotion = emotion_names[max_contrib_idx]
+            contribution = word_contribs[max_contrib_idx]
             
-        print(f"SHAP values shape in coloring: {shap_values.shape}")
-        print(f"Number of emotion names: {len(emotion_names)}")
-        
-        # Handle different SHAP value shapes
-        if len(shap_values.shape) == 1:
-            # Single class case - convert to multi-class format
-            shap_matrix = np.zeros((len(emotion_names), len(shap_values)))
-            shap_matrix[0] = shap_values  # Put all values in first class
-        elif len(shap_values.shape) == 2:
-            if shap_values.shape[0] == len(emotion_names):
-                # Shape is (n_classes, n_features) - correct format
-                shap_matrix = shap_values
-            elif shap_values.shape[1] == len(emotion_names):
-                # Shape is (n_features, n_classes) - transpose
-                shap_matrix = shap_values.T
+            if abs(contribution) > 0.03:
+                color = emotion_colors.get(max_emotion, '#808080')
+                opacity = min(abs(contribution) * 8, 1.0)
+                
+                html_parts.append(
+                    f'<span style="background-color: {color}; '
+                    f'opacity: {opacity}; padding: 4px 8px; margin: 2px; '
+                    f'border-radius: 6px; font-weight: 500; '
+                    f'display: inline-block;" '
+                    f'title="{max_emotion}: {contribution:.3f}">{word}</span>'
+                )
             else:
-                # Use first row for all classes
-                shap_matrix = np.tile(shap_values[0], (len(emotion_names), 1))
+                html_parts.append(f'<span style="margin: 2px; padding: 4px;">{word}</span>')
         else:
-            st.warning(f"Unexpected SHAP values shape: {shap_values.shape}")
-            return text
-        
-        for word_info in word_mappings:
-            word = word_info['word']
-            token_indices = word_info['token_indices']
-            
-            if token_indices:
-                # Aggregate SHAP values for this word across all classes
-                word_shap_values = np.zeros(len(emotion_names))
-                
-                for token_idx in token_indices:
-                    if token_idx < shap_matrix.shape[1]:  # Check bounds
-                        # Sum across all emotion classes for this token
-                        for class_idx in range(len(emotion_names)):
-                            if class_idx < shap_matrix.shape[0]:
-                                word_shap_values[class_idx] += shap_matrix[class_idx, token_idx]
-                
-                # Find the emotion with highest absolute SHAP value
-                max_abs_idx = np.argmax(np.abs(word_shap_values))
-                max_emotion = emotion_names[max_abs_idx]
-                max_value = word_shap_values[max_abs_idx]
-                
-                # Only highlight if the SHAP value is significant
-                if abs(max_value) > 0.001:  # Lower threshold for significance
-                    color = emotion_colors.get(max_emotion, '#808080')
-                    opacity = min(abs(max_value) * 10, 1.0)  # Scale opacity
-                    
-                    html_parts.append(
-                        f'<span style="background-color: {color}; '
-                        f'opacity: {opacity}; padding: 4px 8px; margin: 2px; '
-                        f'border-radius: 6px; font-weight: 500; '
-                        f'display: inline-block;" '
-                        f'title="{max_emotion}: {max_value:.3f}">{word}</span>'
-                    )
-                else:
-                    html_parts.append(f'<span style="margin: 2px; padding: 4px;">{word}</span>')
-            else:
-                # Word not found in tokenized sequence
-                html_parts.append(f'<span style="margin: 2px; padding: 4px; opacity: 0.5;">{word}</span>')
-        
-        return ' '.join(html_parts)
-        
-    except Exception as e:
-        print(f"Error creating colored text: {e}")
-        st.error(f"Error creating colored text: {e}")
-        return text
+            html_parts.append(f'<span style="margin: 2px; padding: 4px;">{word}</span>')
+    
+    return ' '.join(html_parts)
 
 @st.cache_data
-def analyze_with_shap(text, _explainer, _tokenizer, _emotion_names):
+def analyze_with_shap(text, _model, _tokenizer, _emotion_names):
     """Analyze text with SHAP and return explanations"""
     try:
-        if _explainer is None:
-            return None, None
-            
-        shap_values, tokenized_sequence = get_shap_explanations(text, _explainer, _tokenizer, _emotion_names)
-        return shap_values, tokenized_sequence
-        
+        word_contributions = get_word_level_shap_values(text, _model, _tokenizer, MAX_SEQUENCE_LENGTH)
+        return word_contributions
     except Exception as e:
-        st.error(f"SHAP analysis failed: {e}")
-        return None, None
+        st.error(f"Analysis failed: {e}")
+        return None
 
 # Load resources
 tokenizer, model = load_nlp_resources()
-
-# Initialize SHAP explainer
-with st.spinner("Initializing AI explainer (this may take a moment)..."):
-    explainer = initialize_shap_explainer(model, tokenizer)
 
 # Header
 st.markdown("""
@@ -681,63 +490,51 @@ if analyze_button and user_input and user_input.strip():
             
             # SHAP Analysis
             st.markdown('<div class="result-card">', unsafe_allow_html=True)
-            st.markdown('<div class="section-title">Word Analysis (SHAP)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title">Word Analysis</div>', unsafe_allow_html=True)
             
-            if explainer is not None:
-                with st.spinner("Analyzing word contributions with SHAP..."):
-                    shap_values, tokenized_sequence = analyze_with_shap(user_input, explainer, tokenizer, emotion_names_list)
+            with st.spinner("Analyzing word contributions..."):
+                word_contributions = analyze_with_shap(user_input, model, tokenizer, emotion_names_list)
+                
+                if word_contributions is not None and len(word_contributions) > 0:
+                    colored_html = create_colored_text_html(user_input, word_contributions, emotion_names_list, max_emotion)
                     
-                    if shap_values is not None and tokenized_sequence is not None:
-                        colored_html = create_shap_colored_text_html(
-                            user_input, shap_values, tokenized_sequence, tokenizer, emotion_names_list
-                        )
-                        
-                        st.markdown(f'<div class="shap-text">{colored_html}</div>', unsafe_allow_html=True)
-                        
-                        # Legend
-                        st.markdown("""
-                        <div class="legend">
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #FFD700;"></div>
-                                <span>Joy</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #FF69B4;"></div>
-                                <span>Love</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #FF4500;"></div>
-                                <span>Anger</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #8A2BE2;"></div>
-                                <span>Fear</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #4169E1;"></div>
-                                <span>Sadness</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #32CD32;"></div>
-                                <span>Surprise</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color" style="background-color: #808080;"></div>
-                                <span>Neutral</span>
-                            </div>
+                    st.markdown(f'<div class="shap-text">{colored_html}</div>', unsafe_allow_html=True)
+                    
+                    # Legend
+                    st.markdown("""
+                    <div class="legend">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FFD700;"></div>
+                            <span>Joy</span>
                         </div>
-                        """, unsafe_allow_html=True)
-                        
-                        st.markdown("""
-                        <p style="font-size: 0.9rem; color: #718096; margin-top: 1rem; text-align: center;">
-                            Words are colored based on their contribution to the predicted emotion. 
-                            Hover over highlighted words to see their SHAP values.
-                        </p>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.warning("Could not generate SHAP explanations for this text.")
-            else:
-                st.warning("SHAP explainer not available. Word analysis unavailable.")
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FF69B4;"></div>
+                            <span>Love</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #FF4500;"></div>
+                            <span>Anger</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #8A2BE2;"></div>
+                            <span>Fear</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #4169E1;"></div>
+                            <span>Sadness</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #32CD32;"></div>
+                            <span>Surprise</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #808080;"></div>
+                            <span>Neutral</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.warning("Could not analyze individual words.")
             
             st.markdown('</div>', unsafe_allow_html=True)
             
